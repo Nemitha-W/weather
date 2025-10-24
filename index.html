@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LankaSat Weather - Sri Lanka</title>
     
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/react-leaflet@4.2.1/dist/react-leaflet.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         /* --- Design System & Global Styles --- */
@@ -41,6 +41,16 @@
             background-color: var(--bg-primary);
             color: var(--text-primary);
             overflow: hidden;
+        }
+        
+        /* Initial loading message */
+        #initial-loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
         }
 
         /* --- Component Styles --- */
@@ -113,6 +123,7 @@
             overflow-y: auto;
             list-style: none;
             padding: 5px 0;
+            z-index: 1001;
         }
         .suggestion-item {
             padding: 10px 15px;
@@ -199,7 +210,6 @@
             cursor: pointer;
         }
 
-        /* --- Satellite Control Panel --- */
         .sat-controls {
             display: flex;
             gap: 10px;
@@ -222,7 +232,6 @@
             background: rgba(255, 107, 53, 0.1);
         }
         
-        /* --- Weather Details Panel --- */
         .weather-details { color: var(--text-primary); }
         .location-name { font-size: 1.8rem; font-weight: 700; margin-bottom: 5px; }
         .weather-desc { font-size: 1rem; color: var(--text-secondary); text-transform: capitalize; margin-bottom: 20px; }
@@ -269,7 +278,6 @@
             color: var(--text-secondary);
         }
 
-        /* --- Responsive Design --- */
         @media (min-width: 768px) {
             .panel { border-radius: 20px 20px 0 0; }
             .fab { bottom: 120px; }
@@ -278,17 +286,42 @@
 </head>
 <body>
 
-    <div id="root"></div>
+    <div id="root">
+        <div id="initial-loader">Loading LankaSat Weather...</div>
+    </div>
+
+    <!-- React and Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- React-Leaflet -->
+    <script src="https://unpkg.com/react-leaflet@4.2.1/dist/react-leaflet.js"></script>
 
     <script type="text/babel">
+        console.log("LankaSat App: Script started.");
+
         const { useState, useEffect, useCallback, useRef } = React;
-        const { MapContainer, TileLayer, useMap } = ReactLeaflet;
+        
+        // --- DEBUGGING FIX: Safely access React-Leaflet components ---
+        // This prevents the app from crashing if the library isn't loaded yet.
+        const RLeaflet = window.ReactLeaflet;
+        if (!RLeaflet) {
+            console.error("LankaSat App: CRITICAL ERROR - window.ReactLeaflet is not defined. Check the CDN link for react-leaflet.js");
+            // Display an error message to the user
+            document.getElementById('root').innerHTML = '<div style="color:red; text-align:center; padding-top: 50px;">Failed to load application libraries. Please refresh or check your connection.</div>';
+        }
+        const { MapContainer, TileLayer, useMap } = RLeaflet || {};
+
 
         // --- Configuration ---
+        const INITIAL_LOCATION = { lat: 6.9271, lon: 79.8612, name: "Colombo, Sri Lanka" };
         const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
         const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=";
 
-        // --- Simulated Satellite Tile Layers ---
         const SATELLITE_LAYERS = {
             infrared: { name: "Infrared", url: "https://picsum.photos/seed/ir-sat/256/256.jpg", attribution: 'Simulated IR Data' },
             visible: { name: "Visible", url: "https://picsum.photos/seed/vis-sat/256/256.jpg", attribution: 'Simulated VIS Data' },
@@ -302,18 +335,13 @@
             const [overlay, setOverlay] = useState(null);
 
             useEffect(() => {
-                if (overlay) {
-                    map.removeLayer(overlay);
-                    setOverlay(null);
-                }
+                if (overlay) map.removeLayer(overlay);
                 if (layer) {
                     const newOverlay = L.tileLayer(layer.url, { attribution: layer.attribution });
                     newOverlay.addTo(map);
                     setOverlay(newOverlay);
                 }
-                return () => {
-                    if (overlay) map.removeLayer(overlay);
-                };
+                return () => { if (overlay) map.removeLayer(overlay); };
             }, [layer, map]);
             return null;
         }
@@ -321,15 +349,10 @@
         function LocationSearch({ onLocationSelect }) {
             const [query, setQuery] = useState('');
             const [suggestions, setSuggestions] = useState([]);
-            const [isLoading, setIsLoading] = useState(false);
             const timeoutId = useRef(null);
 
             useEffect(() => {
-                if (query.length < 2) {
-                    setSuggestions([]);
-                    return;
-                }
-                setIsLoading(true);
+                if (query.length < 2) { setSuggestions([]); return; }
                 clearTimeout(timeoutId.current);
                 timeoutId.current = setTimeout(async () => {
                     try {
@@ -339,33 +362,19 @@
                     } catch (error) {
                         console.error("Geocoding failed:", error);
                         setSuggestions([]);
-                    } finally {
-                        setIsLoading(false);
                     }
-                }, 500); // Debounce for 500ms
-
+                }, 500);
                 return () => clearTimeout(timeoutId.current);
             }, [query]);
 
             const handleSelect = (place) => {
-                onLocationSelect({
-                    lat: parseFloat(place.lat),
-                    lon: parseFloat(place.lon),
-                    name: place.display_name
-                });
-                setQuery('');
-                setSuggestions([]);
+                onLocationSelect({ lat: parseFloat(place.lat), lon: parseFloat(place.lon), name: place.display_name });
+                setQuery(''); setSuggestions([]);
             };
 
             return (
                 <div className="search-container">
-                    <input
-                        type="text"
-                        className="search-input"
-                        placeholder="Search for a city..."
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                    />
+                    <input className="search-input" placeholder="Search for a city..." value={query} onChange={(e) => setQuery(e.target.value)} />
                     <span className="search-icon">🔍</span>
                     {suggestions.length > 0 && (
                         <ul className="suggestions-list">
@@ -383,31 +392,28 @@
         // --- Main App Component ---
 
         function App() {
-            const [location, setLocation] = useState(null); // Start with null
+            console.log("LankaSat App: App component mounted.");
+            const [location, setLocation] = useState(INITIAL_LOCATION);
             const [weatherData, setWeatherData] = useState(null);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
             const [isWeatherPanelOpen, setIsWeatherPanelOpen] = useState(true);
             const [activeSatLayer, setActiveSatLayer] = useState(null);
+            const mapRef = useRef(null);
 
             const fetchWeather = useCallback(async (lat, lon) => {
-                setLoading(true);
-                setError(null);
-                const params = new URLSearchParams({
-                    latitude: lat,
-                    longitude: lon,
-                    current_weather: "true",
-                    hourly: "temperature_2m,relativehumidity_2m,windspeed_10m,weathercode",
-                    daily: "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
-                    timezone: "auto",
-                });
+                console.log(`LankaSat App: Fetching weather for ${lat}, ${lon}`);
+                setLoading(true); setError(null);
+                const params = new URLSearchParams({ latitude: lat, longitude: lon, current_weather: "true", hourly: "temperature_2m,relativehumidity_2m,windspeed_10m,weathercode", daily: "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max", timezone: "auto", });
                 try {
                     const response = await fetch(`${OPEN_METEO_URL}?${params}`);
                     if (!response.ok) throw new Error("Failed to fetch weather data");
                     const data = await response.json();
                     setWeatherData(data);
+                    console.log("LankaSat App: Weather data fetched successfully.");
                 } catch (err) {
+                    console.error("LankaSat App: Error fetching weather:", err);
                     setError(err.message);
                 } finally {
                     setLoading(false);
@@ -419,25 +425,19 @@
                 if ("geolocation" in navigator) {
                     navigator.geolocation.getCurrentPosition(
                         (pos) => {
-                            setLocation({
-                                lat: pos.coords.latitude,
-                                lon: pos.coords.longitude,
-                                name: "Your Location"
-                            });
+                            console.log("LankaSat App: User location found.");
+                            const newLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude, name: "Your Location" };
+                            setLocation(newLoc);
+                            if (mapRef.current) {
+                                mapRef.current.flyTo([newLoc.lat, newLoc.lon], 10, { duration: 2 });
+                            }
                         },
-                        (err) => {
-                            console.error("Geolocation error:", err);
-                            // Fallback to Colombo if geolocation fails
-                            setLocation({ lat: 6.9271, lon: 79.8612, name: "Colombo, Sri Lanka" });
-                        }
+                        (err) => console.error("LankaSat App: Geolocation error:", err)
                     );
-                } else {
-                     // Fallback to Colombo if geolocation is not available
-                    setLocation({ lat: 6.9271, lon: 79.8612, name: "Colombo, Sri Lanka" });
                 }
             }, []);
 
-            // Fetch weather when location is set
+            // Fetch weather when location changes
             useEffect(() => {
                 if (location) {
                     fetchWeather(location.lat, location.lon);
@@ -445,20 +445,24 @@
             }, [location, fetchWeather]);
 
             const handleLocationSelect = (newLocation) => {
+                console.log("LankaSat App: New location selected:", newLocation.name);
                 setLocation(newLocation);
+                if (mapRef.current) {
+                    mapRef.current.flyTo([newLocation.lat, newLocation.lon], 10, { duration: 2 });
+                }
             };
             
             const handleUseMyLocation = () => {
-                if ("geolocation" in navigator) {
+                 if ("geolocation" in navigator) {
                     navigator.geolocation.getCurrentPosition(
                         (pos) => {
-                            setLocation({
-                                lat: pos.coords.latitude,
-                                lon: pos.coords.longitude,
-                                name: "Your Location"
-                            });
+                            const newLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude, name: "Your Location" };
+                            setLocation(newLoc);
+                            if (mapRef.current) {
+                                mapRef.current.flyTo([newLoc.lat, newLoc.lon], 10, { duration: 2 });
+                            }
                         },
-                        (err) => console.error("Geolocation error:", err)
+                        (err) => console.error("LankaSat App: Geolocation error:", err)
                     );
                 }
             };
@@ -466,9 +470,7 @@
             return (
                 <div className="app-container">
                     <header className="header">
-                        <div className="header-top">
-                            <div className="logo">Lanka<span>Sat</span></div>
-                        </div>
+                        <div className="header-top"><div className="logo">Lanka<span>Sat</span></div></div>
                         <div className="header-bottom">
                             <LocationSearch onLocationSelect={handleLocationSelect} />
                             <button className="use-location-btn" onClick={handleUseMyLocation}>📍 Use My Location</button>
@@ -476,21 +478,18 @@
                         <div className="alert-banner">⚠️ Heavy Rainfall Advisory: Southern Province</div>
                     </header>
 
-                    {location && (
-                        <MapContainer center={[location.lat, location.lon]} zoom={8} style={{ height: '100%', width: '100%' }}>
-                            <TileLayer
-                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                            />
-                            <SatelliteOverlay layer={activeSatLayer} />
-                        </MapContainer>
-                    )}
+                    <MapContainer
+                        center={[location.lat, location.lon]}
+                        zoom={8}
+                        style={{ height: '100%', width: '100%' }}
+                        ref={mapRef}
+                    >
+                        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                        <SatelliteOverlay layer={activeSatLayer} />
+                    </MapContainer>
 
-                    <button className="fab" onClick={() => setIsControlPanelOpen(!isControlPanelOpen)}>
-                        🛰️
-                    </button>
+                    <button className="fab" onClick={() => setIsControlPanelOpen(!isControlPanelOpen)}>🛰️</button>
 
-                    {/* Satellite Control Panel */}
                     <div className={`panel ${isControlPanelOpen ? '' : 'hidden'}`} style={{ bottom: isWeatherPanelOpen ? '320px' : '0px' }}>
                         <div className="panel-header">
                             <h3 className="panel-title">Satellite Layers</h3>
@@ -498,22 +497,5 @@
                         </div>
                         <div className="sat-controls">
                             {Object.entries(SATELLITE_LAYERS).map(([key, layer]) => (
-                                <button
-                                    key={key}
-                                    className={`sat-btn ${activeSatLayer?.name === layer.name ? 'active' : ''}`}
-                                    onClick={() => setActiveSatLayer(activeSatLayer?.name === layer.name ? null : layer)}
-                                >
-                                    {layer.name}
-                                </button>
-                            ))}
-                        </div>
-                         <p style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Animation controls would be here.</p>
-                    </div>
-
-                    {/* Weather Details Panel */}
-                    <div className={`panel ${isWeatherPanelOpen ? '' : 'hidden'}`} style={{ bottom: '0px' }}>
-                        <div className="panel-header">
-                            <h3 className="panel-title">Weather Details</h3>
-                            <button className="panel-close-btn" onClick={() => setIsWeatherPanelOpen(false)}>&times;</button>
-                        </div>
-                        <div className="
+                                <button key={key} className={`sat-btn ${activeSatLayer?.name === layer.name ? 'active' : ''}`} onClick={() => setActiveSatLayer(activeSatLayer?.name === layer.name ? null : layer)}>{layer.name}</button>
+  
