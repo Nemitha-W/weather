@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LankaSat Weather - Sri Lanka</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/react-leaflet@4.2.1/dist/react-leaflet.min.js"></script>
+
+    <style>
+        /* --- Design System & Global Styles --- */
+        :root {
+            --bg-primary: #1E1E1E;
+            --bg-secondary: #2A2A2A;
+            --bg-panel: rgba(42, 42, 42, 0.95);
+            --text-primary: #F0F0F0;
+            --text-secondary: #B0B0B0;
+            --accent-orange: #FF6B35;
+            --accent-blue: #4A90E2;
+            --alert-red: #D32F2F;
+            --alert-orange: #F57C00;
+            --alert-yellow: #FFC107;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html, #root {
+            width: 100%;
+            height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        /* --- Component Styles --- */
+        .app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .leaflet-container {
+            background-color: #0a0a0a;
+        }
+
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 15px 20px;
+            background: linear-gradient(to bottom, rgba(30,30,30,0.95), transparent);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .header-bottom { display: flex; gap: 10px; align-items: center; }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .logo span { color: var(--accent-orange); }
+
+        .search-container {
+            position: relative;
+            flex-grow: 1;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border-radius: 20px;
+            border: 1px solid var(--bg-secondary);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus { border-color: var(--accent-orange); }
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+        }
+
+        .suggestions-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-panel);
+            border: 1px solid var(--bg-secondary);
+            border-radius: 8px;
+            margin-top: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            list-style: none;
+            padding: 5px 0;
+        }
+        .suggestion-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .suggestion-item:hover { background-color: var(--bg-secondary); }
+
+        .use-location-btn {
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: 1px solid var(--accent-orange);
+            background: transparent;
+            color: var(--accent-orange);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .use-location-btn:hover {
+            background-color: var(--accent-orange);
+            color: var(--bg-primary);
+        }
+
+        .alert-banner {
+            background-color: var(--alert-orange);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-align: center;
+        }
+        .alert-banner:hover { background-color: var(--alert-red); }
+
+        .fab {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            z-index: 1000;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background-color: var(--accent-orange);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .fab:hover { transform: scale(1.1); background-color: #ff8a5e; }
+
+        .panel {
+            position: absolute;
+            left: 0;
+            right: 0;
+            background: var(--bg-panel);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid var(--bg-secondary);
+            z-index: 999;
+            transition: transform 0.3s ease-in-out;
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .panel.hidden { transform: translateY(100%); }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .panel-title { font-size: 1.2rem; font-weight: 600; }
+        .panel-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* --- Satellite Control Panel --- */
+        .sat-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .sat-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--bg-secondary);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .sat-btn.active {
+            border-color: var(--accent-orange);
+            color: var(--accent-orange);
+            background: rgba(255, 107, 53, 0.1);
+        }
+        
+        /* --- Weather Details Panel --- */
+        .weather-details { color: var(--text-primary); }
+        .location-name { font-size: 1.8rem; font-weight: 700; margin-bottom: 5px; }
+        .weather-desc { font-size: 1rem; color: var(--text-secondary); text-transform: capitalize; margin-bottom: 20px; }
+        
+        .current-weather {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .current-temp { font-size: 4rem; font-weight: 300; line-height: 1; }
+        .current-icon { font-size: 4rem; }
+        .current-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+        .detail-item { display: flex; align-items: center; gap: 8px; }
+        .detail-item span:first-child { color: var(--text-secondary); }
+
+        .forecast-title { font-weight: 600; margin-top: 20px; margin-bottom: 10px; }
+        .forecast-scroll {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        .forecast-card {
+            min-width: 80px;
+            text-align: center;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+        .forecast-card .time { font-size: 0.8rem; color: var(--text-secondary); }
+        .forecast-card .icon { font-size: 1.5rem; margin: 5px 0; }
+        .forecast-card .temp { font-weight: 600; }
+        .forecast-card .rain { font-size: 0.8rem; color: var(--accent-blue); }
+
+        .loading, .error {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        /* --- Responsive Design --- */
+        @media (min-width: 768px) {
+            .panel { border-radius: 20px 20px 0 0; }
+            .fab { bottom: 120px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+        const { MapContainer, TileLayer, useMap } = ReactLeaflet;
+
+        // --- Configuration ---
+        const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
+        const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=";
+
+        // --- Simulated Satellite Tile Layers ---
+        const SATELLITE_LAYERS = {
+            infrared: { name: "Infrared", url: "https://picsum.photos/seed/ir-sat/256/256.jpg", attribution: 'Simulated IR Data' },
+            visible: { name: "Visible", url: "https://picsum.photos/seed/vis-sat/256/256.jpg", attribution: 'Simulated VIS Data' },
+            waterVapor: { name: "Water Vapor", url: "https://picsum.photos/seed/wv-sat/256/256.jpg", attribution: 'Simulated WV Data' },
+        };
+
+        // --- Helper Components ---
+
+        function SatelliteOverlay({ layer }) {
+            const map = useMap();
+            const [overlay, setOverlay] = useState(null);
+
+            useEffect(() => {
+                if (overlay) {
+                    map.removeLayer(overlay);
+                    setOverlay(null);
+                }
+                if (layer) {
+                    const newOverlay = L.tileLayer(layer.url, { attribution: layer.attribution });
+                    newOverlay.addTo(map);
+                    setOverlay(newOverlay);
+                }
+                return () => {
+                    if (overlay) map.removeLayer(overlay);
+                };
+            }, [layer, map]);
+            return null;
+        }
+        
+        function LocationSearch({ onLocationSelect }) {
+            const [query, setQuery] = useState('');
+            const [suggestions, setSuggestions] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const timeoutId = useRef(null);
+
+            useEffect(() => {
+                if (query.length < 2) {
+                    setSuggestions([]);
+                    return;
+                }
+                setIsLoading(true);
+                clearTimeout(timeoutId.current);
+                timeoutId.current = setTimeout(async () => {
+                    try {
+                        const response = await fetch(`${NOMINATIM_URL}${encodeURIComponent(query)}`);
+                        const data = await response.json();
+                        setSuggestions(data);
+                    } catch (error) {
+                        console.error("Geocoding failed:", error);
+                        setSuggestions([]);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                }, 500); // Debounce for 500ms
+
+                return () => clearTimeout(timeoutId.current);
+            }, [query]);
+
+            const handleSelect = (place) => {
+                onLocationSelect({
+                    lat: parseFloat(place.lat),
+                    lon: parseFloat(place.lon),
+                    name: place.display_name
+                });
+                setQuery('');
+                setSuggestions([]);
+            };
+
+            return (
+                <div className="search-container">
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="Search for a city..."
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                    <span className="search-icon">🔍</span>
+                    {suggestions.length > 0 && (
+                        <ul className="suggestions-list">
+                            {suggestions.map((suggestion, index) => (
+                                <li key={index} className="suggestion-item" onClick={() => handleSelect(suggestion)}>
+                                    {suggestion.display_name}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            );
+        }
+
+        // --- Main App Component ---
+
+        function App() {
+            const [location, setLocation] = useState(null); // Start with null
+            const [weatherData, setWeatherData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
+            const [isWeatherPanelOpen, setIsWeatherPanelOpen] = useState(true);
+            const [activeSatLayer, setActiveSatLayer] = useState(null);
+
+            const fetchWeather = useCallback(async (lat, lon) => {
+                setLoading(true);
+                setError(null);
+                const params = new URLSearchParams({
+                    latitude: lat,
+                    longitude: lon,
+                    current_weather: "true",
+                    hourly: "temperature_2m,relativehumidity_2m,windspeed_10m,weathercode",
+                    daily: "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                    timezone: "auto",
+                });
+                try {
+                    const response = await fetch(`${OPEN_METEO_URL}?${params}`);
+                    if (!response.ok) throw new Error("Failed to fetch weather data");
+                    const data = await response.json();
+                    setWeatherData(data);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            }, []);
+
+            // Get user's current location on initial load
+            useEffect(() => {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                            setLocation({
+                                lat: pos.coords.latitude,
+                                lon: pos.coords.longitude,
+                                name: "Your Location"
+                            });
+                        },
+                        (err) => {
+                            console.error("Geolocation error:", err);
+                            // Fallback to Colombo if geolocation fails
+                            setLocation({ lat: 6.9271, lon: 79.8612, name: "Colombo, Sri Lanka" });
+                        }
+                    );
+                } else {
+                     // Fallback to Colombo if geolocation is not available
+                    setLocation({ lat: 6.9271, lon: 79.8612, name: "Colombo, Sri Lanka" });
+                }
+            }, []);
+
+            // Fetch weather when location is set
+            useEffect(() => {
+                if (location) {
+                    fetchWeather(location.lat, location.lon);
+                }
+            }, [location, fetchWeather]);
+
+            const handleLocationSelect = (newLocation) => {
+                setLocation(newLocation);
+            };
+            
+            const handleUseMyLocation = () => {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                            setLocation({
+                                lat: pos.coords.latitude,
+                                lon: pos.coords.longitude,
+                                name: "Your Location"
+                            });
+                        },
+                        (err) => console.error("Geolocation error:", err)
+                    );
+                }
+            };
+
+            return (
+                <div className="app-container">
+                    <header className="header">
+                        <div className="header-top">
+                            <div className="logo">Lanka<span>Sat</span></div>
+                        </div>
+                        <div className="header-bottom">
+                            <LocationSearch onLocationSelect={handleLocationSelect} />
+                            <button className="use-location-btn" onClick={handleUseMyLocation}>📍 Use My Location</button>
+                        </div>
+                        <div className="alert-banner">⚠️ Heavy Rainfall Advisory: Southern Province</div>
+                    </header>
+
+                    {location && (
+                        <MapContainer center={[location.lat, location.lon]} zoom={8} style={{ height: '100%', width: '100%' }}>
+                            <TileLayer
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                            />
+                            <SatelliteOverlay layer={activeSatLayer} />
+                        </MapContainer>
+                    )}
+
+                    <button className="fab" onClick={() => setIsControlPanelOpen(!isControlPanelOpen)}>
+                        🛰️
+                    </button>
+
+                    {/* Satellite Control Panel */}
+                    <div className={`panel ${isControlPanelOpen ? '' : 'hidden'}`} style={{ bottom: isWeatherPanelOpen ? '320px' : '0px' }}>
+                        <div className="panel-header">
+                            <h3 className="panel-title">Satellite Layers</h3>
+                            <button className="panel-close-btn" onClick={() => setIsControlPanelOpen(false)}>&times;</button>
+                        </div>
+                        <div className="sat-controls">
+                            {Object.entries(SATELLITE_LAYERS).map(([key, layer]) => (
+                                <button
+                                    key={key}
+                                    className={`sat-btn ${activeSatLayer?.name === layer.name ? 'active' : ''}`}
+                                    onClick={() => setActiveSatLayer(activeSatLayer?.name === layer.name ? null : layer)}
+                                >
+                                    {layer.name}
+                                </button>
+                            ))}
+                        </div>
+                         <p style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Animation controls would be here.</p>
+                    </div>
+
+                    {/* Weather Details Panel */}
+                    <div className={`panel ${isWeatherPanelOpen ? '' : 'hidden'}`} style={{ bottom: '0px' }}>
+                        <div className="panel-header">
+                            <h3 className="panel-title">Weather Details</h3>
+                            <button className="panel-close-btn" onClick={() => setIsWeatherPanelOpen(false)}>&times;</button>
+                        </div>
+                        <div className="
