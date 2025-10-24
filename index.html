@@ -498,4 +498,66 @@
                         <div className="sat-controls">
                             {Object.entries(SATELLITE_LAYERS).map(([key, layer]) => (
                                 <button key={key} className={`sat-btn ${activeSatLayer?.name === layer.name ? 'active' : ''}`} onClick={() => setActiveSatLayer(activeSatLayer?.name === layer.name ? null : layer)}>{layer.name}</button>
+                    ))}
+                        </div>
+                         <p style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Animation controls would be here.</p>
+                    </div>
+
+                    <div className={`panel ${isWeatherPanelOpen ? '' : 'hidden'}`} style={{ bottom: '0px' }}>
+                        <div className="panel-header">
+                            <h3 className="panel-title">Weather Details</h3>
+                            <button className="panel-close-btn" onClick={() => setIsWeatherPanelOpen(false)}>&times;</button>
+                        </div>
+                        <div className="weather-details">
+                            {loading && <div className="loading">Loading weather data...</div>}
+                            {error && <div className="error">Error: {error}</div>}
+                            {weatherData && location && (
+                                <>
+                                    <h2 className="location-name">{location.name}</h2>
+                                    <p className="weather-desc">{getWeatherDescription(weatherData.current_weather.weathercode)}</p>
+                                    <div className="current-weather">
+                                        <div className="current-temp">{Math.round(weatherData.current_weather.temperature)}°C</div>
+                                        <div className="current-icon">{getWeatherIcon(weatherData.current_weather.weathercode)}</div>
+                                        <div className="current-details">
+                                            <div className="detail-item"><span>💧</span> Humidity: {weatherData.hourly.relativehumidity_2m[0]}%</div>
+                                            <div className="detail-item"><span>💨</span> Wind: {weatherData.current_weather.windspeed} km/h</div>
+                                            <div className="detail-item"><span>🌡️</span> Feels like: {Math.round(weatherData.hourly.temperature_2m[0])}°C</div>
+                                            <div className="detail-item"><span>🧭</span> Dir: {getWindDirection(weatherData.current_weather.winddirection)}</div>
+                                        </div>
+                                    </div>
+                                    <h4 className="forecast-title">Hourly Forecast</h4>
+                                    <div className="forecast-scroll">
+                                        {weatherData.hourly.time.slice(0, 24).map((time, i) => (
+                                            <div key={i} className="forecast-card">
+                                                <div className="time">{new Date(time).getHours()}:00</div>
+                                                <div className="icon">{getWeatherIcon(weatherData.hourly.weathercode[i])}</div>
+                                                <div className="temp">{Math.round(weatherData.hourly.temperature_2m[i])}°</div>
+                                                <div className="rain">{weatherData.hourly.relativehumidity_2m[i]}%</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {!isWeatherPanelOpen && (
+                        <button className="fab" style={{bottom: '20px'}} onClick={() => setIsWeatherPanelOpen(true)}>☁️</button>
+                    )}
+                </div>
+            );
+        }
+
+        // --- Utility Functions ---
+        function getWeatherDescription(code) { const descriptions = { 0: "Clear", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast", 45: "Fog", 48: "Fog", 51: "Drizzle", 53: "Drizzle", 55: "Drizzle", 56: "Freezing Drizzle", 57: "Freezing Drizzle", 61: "Rain", 63: "Rain", 65: "Heavy Rain", 66: "Freezing Rain", 67: "Freezing Rain", 71: "Snow", 73: "Snow", 75: "Heavy Snow", 80: "Rain Showers", 81: "Rain Showers", 82: "Violent Rain Showers", 95: "Thunderstorm", 96: "Thunderstorm", 99: "Severe Thunderstorm" }; return descriptions[code] || "Unknown"; }
+        function getWeatherIcon(code) { const icons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌦️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "🌨️", 73: "🌨️", 75: "❄️", 80: "🌦️", 81: "🌦️", 82: "⛈️", 95: "⛈️", 96: "⛈️", 99: "🌩️" }; return icons[code] || "🌡️"; }
+        function getWindDirection(deg) { const directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]; return directions[Math.round(deg / 22.5) % 16]; }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>
   
