@@ -13,21 +13,25 @@ export default function App() {
   const lat = 6.9271;
   const lon = 79.8612;
 
-  const fetchWeather = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `${API_URL}?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,moon_phase&current_weather=true&timezone=auto`
-      );
-      if (!res.ok) throw new Error("Network response was not ok");
-      const json = await res.json();
-      setData(json);
-      setError(null);
-    } catch (err) {
-      setError("Failed to load weather data. Please refresh.");
-    }
-    setLoading(false);
-  };
+  const API_URL = "https://api.open-meteo.com/v1/forecast";
+
+const fetchWeather = async () => {
+  setLoading(true);
+  try {
+    const res = await fetch(
+      `${API_URL}?latitude=6.9271&longitude=79.8612&hourly=temperature_2m,precipitation_probability,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,moon_phase&current_weather=true&timezone=Asia%2FColombo`,
+      { mode: "cors" }
+    );
+    if (!res.ok) throw new Error("Network response was not ok");
+    const json = await res.json();
+    setData(json);
+    setError(null);
+  } catch (err) {
+    setError("Failed to load weather data. Please refresh.");
+    console.error(err);
+  }
+  setLoading(false);
+};
 
   useEffect(() => {
     fetchWeather();
